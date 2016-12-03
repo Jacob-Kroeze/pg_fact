@@ -1,0 +1,15 @@
+version: '2'
+services:
+  web:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/dbdata
+    depends_on:
+      - postgrest
+      - postgres
+  postgres:
+    image: postgres:9.6.1
+  postgrest:
+    image: begriffs/postgrest:latest
