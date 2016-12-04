@@ -3,13 +3,18 @@ services:
   web:
     build: .
     ports:
-      - "3000:3000"
+      - "4000:4000"
     volumes:
       - .:/dbdata
     depends_on:
-      - postgrest
-      - postgres
-  postgres:
-    image: postgres:9.6.1
-  postgrest:
+      - database
+      - api
+  database:
+    build: ./database
+    ports:
+      - "5432:5432"
+  api:
     image: begriffs/postgrest:latest
+    ports:
+      - "3000:3000"
+
