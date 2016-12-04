@@ -14,15 +14,18 @@ docker image begriffs/postgrest:latest
 
 Resolve docker dependencies and build your environment.
 
-$ docker-compose up
-$ psql -h localhost -U postgres
+  `$ docker-compose up`
+
+  `$ psql -h localhost -U postgres`
 
 Here's the admin user
 
+`
 insert into basic_auth.users
  (email, pass, name, department_mask, role, verified)
 values
  ('admin@example.com', 'password', 'admin-name', '', 'admin', 't')
+`
 
 Please change this if you move anything off your machine.
 
