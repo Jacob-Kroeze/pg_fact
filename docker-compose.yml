@@ -17,4 +17,6 @@ services:
     image: begriffs/postgrest:latest
     ports:
       - "3000:3000"
-
+    command: postgrest postgres://database:5432/postgres -a anonymous -p 3000 -s v1 -j jwt-secret -o 10 -m 250000
+    depends_on:
+      - database
