@@ -4,19 +4,32 @@ services:
     build: .
     ports:
       - "4000:4000"
-    volumes:
-      - .:/dbdata
+    command: lein run
     depends_on:
       - database
       - api
+  repl:
+    build: .
+    command: lein repl
+    volumes:
+      - .:/code
+    working_dir: /code
   database:
     build: ./database
+    volumes:
+      - . :/var/lib/postgresql
     ports:
       - "5432:5432"
   api:
     image: begriffs/postgrest:latest
     ports:
       - "3000:3000"
-    command: postgrest postgres://database:5432/postgres -a anonymous -p 3000 -s v1 -j jwt-secret -o 10 -m 250000
+    command: [ postgrest, "postgres://postgres@database:5432/postgres",
+              -a, "guest", 
+              -p, "3000",
+              -s, "v1",
+              -j, "jwt-secret",
+              -o, "10",
+              -m, "25000" ]
     depends_on:
       - database

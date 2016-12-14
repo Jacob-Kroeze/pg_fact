@@ -1,9 +1,9 @@
 # pg_fact (sort of in use at my work, but not in this form. Use at your own risk)
 
 A Clojure library designed to
-* TODO: pg_fact console
+* TODO: pg_fact console datalog
 * TODO: pg_fact data entry ui
-* TODO: pg_fact data correction ui
+* TODO: pg_fact data correction ui with rules engine
 
 ## Dependencies
 
@@ -14,11 +14,16 @@ docker image begriffs/postgrest:latest
 
 Resolve docker dependencies and build your environment.
 
+- run the system
   `$ docker-compose up`
 
+- run an sql console
   `$ psql -h localhost -U postgres`
+  
+- TODO: run data entry ui service; run console datalog; run console
+  rules engine
 
-Here's the admin user
+- Create an admin user
 
 `
 insert into basic_auth.users
@@ -26,8 +31,7 @@ insert into basic_auth.users
 values
  ('admin@example.com', 'password', 'admin-name', '', 'admin', 't')
 `
-
-Please change this if you move anything off your machine.
+Of course, use a secure password if you deploy this somewhere.
 
 ## License
 
