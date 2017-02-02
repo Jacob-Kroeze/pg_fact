@@ -177,34 +177,34 @@ select * from fact.eid('0000547', 'test2eid');
 select * from fact.lookup_ref;
 rollback to savepoint test; commit;
 
-
--- Function fact.eid (with match_on_ref paramater
--- will find existing ref, and match 2 refs to one entity id (eid).
--- for example employee id and government id can point to the same eid.
---doc: look for existing ref. if exists,  match on ref, create an eid if none
---exists, and ensure both ref and match on ref exists or are
---created with identical eids.
-create or replace function fact.eid(_ref text, _ref_tag text, _match_on_ref text, out result uuid)
-    language plpgsql
-    as $$
-    declare _ref_exists uuid;
-    declare _match uuid;
-    begin
--- use existing function fact.eid(text,text).
-select eid from fact.lookup_ref where _match_on_ref = ref into _match;
-    raise notice 'ref exists %s', _match;
-    if  _match is null then
-select null::uuid into result;
-    raise notice '%s', 'ref does not exist';
-    end if;
-    if _match is not null then
-insert into fact.lookup_ref (eid, ref, ref_tag) values (_match, _ref, _ref_tag)
-    on conflict do nothing
-    returning eid into result;
-    end if;
-    if result is null then select _match into result; end if;
-    end;
-$$;
+-- update: bug found in this function. It's likely unused.
+-- -- Function fact.eid (with match_on_ref paramater
+-- -- will find existing ref, and match 2 refs to one entity id (eid).
+-- -- for example employee id and government id can point to the same eid.
+-- --doc: look for existing ref. if exists,  match on ref, create an eid if none
+-- --exists, and ensure both ref and match on ref exists or are
+-- --created with identical eids.
+-- create or replace function fact.eid(_ref text, _ref_tag text, _match_on_ref text, out result uuid)
+--     language plpgsql
+--     as $$
+--     declare _ref_exists uuid;
+--     declare _match uuid;
+--     begin
+-- -- use existing function fact.eid(text,text).
+-- select eid from fact.lookup_ref where _match_on_ref = ref into _match;
+--     raise notice 'ref exists %s', _match;
+--     if  _match is null then
+-- select null::uuid into result;
+--     raise notice '%s', 'ref does not exist';
+--     end if;
+--     if _match is not null then
+-- insert into fact.lookup_ref (eid, ref, ref_tag) values (_match, _ref, _ref_tag)
+--     on conflict do nothing
+--     returning eid into result;
+--     end if;
+--     if result is null then select _match into result; end if;
+--     end;
+-- $$;
 
 --test just one result from 2 ids.
 begin; savepoint test;
