@@ -45,15 +45,6 @@ paths:='["emplid","uscid", "email"]',
 val:='{"emplid":"0123456", "uscid":"0123456789", "email": "my@example.usc.emai"}');
 rollback to savepoint test; commit;
 
-
-drop table edge;
-
-create table if not exists fact.edge
-(f1 uuid references fact.eid(eid), f1_txid bigint,
- f2 uuid references fact.eid(eid), f2_txid bigint,
- label text);
-
-
 -- Function fact.eid( ref, tag, eid)
 -- insert a new ref into lookup_ref table so that
 -- two references point to the same eid. Using an existing eid
@@ -114,9 +105,20 @@ select 'test 3 new refs with one eid';
 select count(*) = 3 from fact.lookup_ref where fact.eid('0123456', 'emplid') = eid;
 rollback to savepoint test; commit;
 
--- Function fact._save_fact
+-- Table fact.edge
+-- store relation between two facts.
+drop table fact.edge;
+create table if not exists fact.edge
+(f1_eid uuid references fact.eid(eid), f1_txid bigint not null,
+f2_eid uuid references fact.eid(eid), f2_txid bigint not null,
+label text,
+unique (f1_eid, f1_txid, f2_eid, f2_txid)
+);
+
+-- Function fact._save_fact2
 -- save ONE fact used within fact.save_facts function.
 -- depends on search api set_search.
+begin;
 create or replace function fact._save_fact2(
         _table text,
         _refs jsonb,
@@ -132,6 +134,7 @@ create or replace function fact._save_fact2(
 declare _txid bigint;
 declare _eid uuid;
 declare _refs_object jsonb;
+declare _edges_object jsonb;
     begin
 -- build up refs object with is ref-key: ref-val
 select jsonb_extract_paths(_refs, _val) into _refs_object;
@@ -159,9 +162,44 @@ insert into fact.%1$s
     returning *
     ', _table, _txtime, _add, _timeagg, _val, _eid, _ef_at ) into _txid;
 PERFORM (select true from  fact.set_search(_txid));
--- todo collect edge key-vals ; PERFORM (insert into fact.edge (txid, eid, ) values (_txid, _eid );
+-- insert an edges record connecting 2 facts.
+select jsonb_extract_paths(_edges, _val) into _edges_object;
+raise notice 'Edge object %', _edges_object;
+with edges as (select
+     _eid f1_eid,
+     _txid f1_txid,
+     fact.eid(value, key) f2_eid,
+     (select 
+coalesce(
+        max(f.txid) 
+        ,(select (new_edge.result->'txids'->>0)::bigint from fact.save_facts2(tbl:='default_edge', refs:='[]', edges:='[]', ef_at:=now(), val:=jsonb_build_array(jsonb_build_object(key, value))) new_edge))
+             from fact.fact f where  eid = fact.eid(value, key) and ef_at <= _ef_at ) f2_txid,
+     key "label"
+     from jsonb_each_text(_edges_object) o
+) insert into fact.edge (f1_eid, f1_txid, f2_eid, f2_txid, "label") 
+            select o.f1_eid, o.f1_txid, o.f2_eid, o.f2_txid, o."label"
+            from edges o on conflict do nothing;
 select _txid into txid;
-end$$;
+end;
+$$;
+commit;
+begin; savepoint test;
+select (result->'txids'->>0)::bigint from fact.save_facts2(tbl:='default_edge', refs:='[]', edges:='[]', ef_at:=now(),
+val:='[{"primary_dept": "012dept", "secondary_dept": "2dept222"}]'::jsonb);
+select 'insert 1 _save_fact2';
+select fact._save_fact2(
+'test'::text,
+'["emplid","uscid"]'::jsonb, 
+'["primary_dept", "secondary_dept"]'::jsonb,
+'2013-01-01'::timestamptz, 
+'{"emplid":"0123456", "uscid":"0123456789", "primary_dept": "012dept", "secondary_dept": "2dept222"}'::jsonb,
+'2013',
+true,
+now()
+);
+select * from fact.edge;
+select val from fact.fact;
+rollback to savepoint test; commit;
 
 
 create or replace function fact.save_facts2(
@@ -214,4 +252,9 @@ select * from fact.save_facts2(
 select 'fact.test should have 3 rows' test;
 select * from fact.test;
 select * from fact.lookup_ref where ref like '%not%';
+select * from fact.edge;-- todo!
 rollback to savepoint test; commit;
+
+
+
+
