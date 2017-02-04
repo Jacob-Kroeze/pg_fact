@@ -33,6 +33,14 @@ values
 `
 Of course, use a secure password if you deploy this somewhere.
 
+# Development
+
+Modify *.sql files or ad one to init-sql directory. If testing the
+changes work with docker-compose, make sure to run docker-compose rm
+-v to get a clean build.
+
+
+
 ## License
 
 Copyright © 2016 Jacob Kroeze

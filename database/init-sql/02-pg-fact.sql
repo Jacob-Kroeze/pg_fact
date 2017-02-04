@@ -207,11 +207,13 @@ rollback to savepoint test; commit;
 -- $$;
 
 --test just one result from 2 ids.
-begin; savepoint test;
-select * from fact.eid('0000547', 'gds/employee-id');
-select * from fact.eid('0123456789', 'gds/usc-id', '0000547');
-select * from fact.lookup_ref where ref = '0000547' or ref = '0123456789'; -- should be 2 rows same eid;
-rollback to savepoint test; commit;
+--------------------------------------------------------------------------------------------------------------
+-- begin; savepoint test;                                                                                   --
+-- select * from fact.eid('0000547', 'gds/employee-id');                                                    --
+-- select * from fact.eid('0123456789', 'gds/usc-id', '0000547');                                           --
+-- select * from fact.lookup_ref where ref = '0000547' or ref = '0123456789'; -- should be 2 rows same eid; --
+-- rollback to savepoint test; commit;                                                                      --
+--------------------------------------------------------------------------------------------------------------
 
 
 -- Function fact.src
@@ -292,7 +294,6 @@ rollback to savepoint test; commit;
 --test
 begin; savepoint test;
 select * from fact.eid('0000547', 'testeid');
-select * from fact.eid('0000547000', 'testeid', '0000547');
 select eid, ref, ref_tag from fact.lookup_ref limit 5;
 delete from fact.lookup_ref where ref like '0000547%';
 rollback to savepoint test; commit;

@@ -45,7 +45,7 @@ paths:='["emplid","uscid", "email"]',
 val:='{"emplid":"0123456", "uscid":"0123456789", "email": "my@example.usc.emai"}');
 rollback to savepoint test; commit;
 
--- Function fact.eid( ref, tag, eid)
+-- Function fact.eid( ref text, tag text, eid uuid)
 -- insert a new ref into lookup_ref table so that
 -- two references point to the same eid. Using an existing eid
 -- e.g. 7 digit Employee id and 10 digit employee ids point to the same person eid (entity id)
@@ -107,7 +107,6 @@ rollback to savepoint test; commit;
 
 -- Table fact.edge
 -- store relation between two facts.
-drop table fact.edge;
 create table if not exists fact.edge
 (f1_eid uuid references fact.eid(eid), f1_txid bigint not null,
 f2_eid uuid references fact.eid(eid), f2_txid bigint not null,
@@ -118,6 +117,22 @@ unique (f1_eid, f1_txid, f2_eid, f2_txid)
 -- Table fact.fact
 -- add exp_at non null timestamptz 
 alter table fact.fact add if not exists exp_at timestamptz not null default 'infinity'::timestamptz;
+
+
+-- Function hoist (temporarily) save.save_facts2
+-- this way _save_fact2 can depend on save_facts2
+create or replace function fact.save_facts2(
+        tbl text,
+        refs jsonb,
+        edges jsonb,
+        val jsonb,
+        timeagg text default null,
+        ef_at timestamptz default now(), 
+        txtime timestamptz default now(),
+        add boolean default true,
+        OUT result jsonb)
+    language plpgsql as $$ begin end$$;
+
 
 
 -- Function fact._save_fact2
@@ -183,7 +198,10 @@ with edges as (select
      (select 
 coalesce(
         max(f.txid) 
-        ,(select (new_edge.result->'txids'->>0)::bigint from fact.save_facts2(tbl:='default_edge', refs:='[]', edges:='[]', ef_at:=now(), val:=jsonb_build_array(jsonb_build_object(key, value))) new_edge))
+        ,(select (new_edge.result->'txids'->>0)::bigint 
+                 from fact.save_facts2(tbl:='default_edge', refs:='[]', edges:='[]', 
+                                  ef_at:=now(), timeagg:='INF', 
+                                  val:=jsonb_build_array(jsonb_build_object(key, value))) new_edge))
              from fact.fact f where  eid = fact.eid(value, key) and ef_at <= _ef_at ) f2_txid,
      key "label"
      from jsonb_each_text(_edges_object) o
@@ -194,58 +212,6 @@ select _txid into txid;
 end;
 $$;
 commit;
-begin; savepoint test;
-select 'test expiration is properly set for facts that match eid, timeagg, src';
-select fact._save_fact2(
-'test'::text,
-'["emplid","uscid"]'::jsonb, 
-'["primary_dept", "secondary_dept"]'::jsonb,
-'2013-01-01'::timestamptz, 
-'{"new": "attribute", "emplid":"0123456", "uscid":"0123456789", "primary_dept": "012dept", "secondary_dept": "2dept222"}'::jsonb,
-'2013',
-true,
-now()
-);
-select fact._save_fact2(
-'test'::text,
-'["emplid","uscid"]'::jsonb, 
-'["primary_dept", "secondary_dept"]'::jsonb,
-'2013-01-01'::timestamptz, 
-'{"another": "new attribute", "emplid":"0123456", "uscid":"0123456789", "primary_dept": "012dept", "secondary_dept": "2dept222"}'::jsonb,
-'2013',
-true,
-now()
-);
-select fact._save_fact2(
-'test'::text,
-'["emplid","uscid"]'::jsonb, 
-'["primary_dept", "secondary_dept"]'::jsonb,
-'2013-01-01'::timestamptz, 
-'{"another": "new attribute, Again!", "emplid":"0123456", "uscid":"0123456789", "primary_dept": "012dept", "secondary_dept": "2dept222"}'::jsonb,
-'2013',
-true,
-now()
-);
-select * from fact.fact join fact.lookup_ref using (eid) where ref = '0123456';
-rollback to savepoint test; commit;
-
-
-begin; savepoint test;
-select (result->'txids'->>0)::bigint from fact.save_facts2(tbl:='default_edge', refs:='[]', edges:='[]', ef_at:=now(),
-val:='[{"primary_dept": "012dept", "secondary_dept": "2dept222"}]'::jsonb);
-select 'insert 1 _save_fact2';
-select fact._save_fact2(
-'test'::text,
-'["emplid","uscid"]'::jsonb, 
-'["primary_dept", "secondary_dept"]'::jsonb,
-'2013-01-01'::timestamptz, 
-'{"emplid":"0123456", "uscid":"0123456789", "primary_dept": "012dept", "secondary_dept": "2dept222"}'::jsonb,
-'2013',
-true,
-now()
-);
-rollback to savepoint test; commit;
-
 
 
 create or replace function fact.save_facts2(
@@ -294,6 +260,7 @@ select * from fact.save_facts2(
        refs:='["emplid","uscid"]', 
        edges:='["primary_dept"]',
        ef_at:='2013/01/01', 
+       timeagg:='2013',
        val:='[{"emplid":"0123456", "uscid":"0123456789"},{"a":1}, {"b":2}, {"c":3}]'::jsonb);
 select 'fact.test should have 3 rows' test;
 select * from fact.test;
@@ -301,6 +268,42 @@ select * from fact.lookup_ref where ref like '%not%';
 select * from fact.edge;-- todo!
 rollback to savepoint test; commit;
 
+begin; savepoint test;
+select 'create fact test source';
+ select fact.create_src('test', 'bxt/'|| 'tbl') ;
+select 'test expiration is properly set for facts that match eid, timeagg, src';
+select fact._save_fact2(
+'test'::text,
+'["emplid","uscid"]'::jsonb, 
+'["primary_dept", "secondary_dept"]'::jsonb,
+'2013-01-01'::timestamptz, 
+'{"new": "attribute", "emplid":"0123456", "uscid":"0123456789", "primary_dept": "012dept", "secondary_dept": "2dept222"}'::jsonb,
+'2013',
+true,
+now()
+);
+select fact._save_fact2(
+'test'::text,
+'["emplid","uscid"]'::jsonb, 
+'["primary_dept", "secondary_dept"]'::jsonb,
+'2013-01-01'::timestamptz, 
+'{"another": "new attribute", "emplid":"0123456", "uscid":"0123456789", "primary_dept": "012dept", "secondary_dept": "2dept222"}'::jsonb,
+'2013',
+true,
+now()
+);
+select fact._save_fact2(
+'test'::text,
+'["emplid","uscid"]'::jsonb, 
+'["primary_dept", "secondary_dept"]'::jsonb,
+'2013-01-01'::timestamptz, 
+'{"another": "new attribute, Again!", "emplid":"0123456", "uscid":"0123456789", "primary_dept": "012dept", "secondary_dept": "2dept222"}'::jsonb,
+'2013',
+true,
+now()
+);
+select * from fact.fact join fact.lookup_ref using (eid) where ref = '0123456';
+rollback to savepoint test; commit;
 
 
 
